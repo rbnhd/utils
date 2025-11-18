@@ -1,0 +1,212 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+      - '.local/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate-html:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install html-validate
+        run: npm install -g html-validate
+
+      - name: Create html-validate config
+        run: |
+          cat > .htmlvalidate.json << 'EOF'
+          {
+            "extends": ["html-validate:recommended"],
+            "rules": {
+              "no-inline-style": "off",
+              "require-sri": "off",
+              "no-trailing-whitespace": "off",
+              "element-required-attributes": "off",
+              "button-type": "off",
+              "no-implicit-button-type": "off",
+              "unique-landmark": "off",
+              "void-style": "off",
+              "no-redundant-role": "off",
+              "wcag/h32": "off",
+              "form-dup-name": "off"
+            }
+          }
+          EOF
+
+      - name: Validate HTML files
+        id: html-check
+        continue-on-error: true
+        run: |
+          html-validate "*.html" || exit 1
+
+      - name: Set validation result
+        id: result
+        run: echo "status=${{ steps.html-check.outcome }}" >> $GITHUB_OUTPUT
+
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+
+  validate-css:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate CSS files
+        id: css-check
+        continue-on-error: true
+        run: |
+          echo "Checking for unmatched braces in CSS files..."
+          for file in *.css; do
+            if [ -f "$file" ]; then
+              open_braces=$(grep -o '{' "$file" | wc -l)
+              close_braces=$(grep -o '}' "$file" | wc -l)
+              if [ "$open_braces" -ne "$close_braces" ]; then
+                echo "Error: Unmatched braces in $file"
+                echo "Open braces: $open_braces, Close braces: $close_braces"
+                exit 1
+              fi
+            fi
+          done
+          echo "CSS validation passed!"
+
+      - name: Set validation result
+        id: result
+        run: echo "status=${{ steps.css-check.outcome }}" >> $GITHUB_OUTPUT
+
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check internal links
+        id: link-check
+        continue-on-error: true
+        run: |
+          echo "Checking for broken internal links in HTML files..."
+          found_broken=false
+          for file in *.html; do
+            if [ -f "$file" ]; then
+              echo "Checking $file..."
+              # Extract local hrefs (not starting with http, mailto, #, tel, or data:)
+              local_links=$(grep -oP 'href="\K[^"]*' "$file" | grep -v '^http' | grep -v '^mailto' | grep -v '^#' | grep -v '^tel' | grep -v '^data:' || true)
+              for link in $local_links; do
+                # Remove anchor if present
+                link_file="${link%%#*}"
+                if [ -n "$link_file" ] && [ ! -f "$link_file" ]; then
+                  echo "Warning: Broken link in $file: $link"
+                  found_broken=true
+                fi
+              done
+            fi
+          done
+          if [ "$found_broken" = true ]; then
+            echo "Found broken links (warning only)"
+          else
+            echo "All internal links are valid!"
+          fi
+
+      - name: Set validation result
+        id: result
+        run: echo "status=${{ steps.link-check.outcome }}" >> $GITHUB_OUTPUT
+
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [validate-html, validate-css, check-links]
+    if: always()
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Generate summary
+        id: summary
+        run: |
+          html_status="${{ needs.validate-html.outputs.status }}"
+          css_status="${{ needs.validate-css.outputs.status }}"
+          link_status="${{ needs.check-links.outputs.status }}"
+
+          html_emoji="✅"
+          css_emoji="✅"
+          link_emoji="✅"
+
+          [ "$html_status" != "success" ] && html_emoji="❌"
+          [ "$css_status" != "success" ] && css_emoji="❌"
+          [ "$link_status" != "success" ] && link_emoji="❌"
+
+          summary="## Validation Results\n\n"
+          summary+="| Check | Status |\n"
+          summary+="|-------|--------|\n"
+          summary+="| HTML Validation | $html_emoji |\n"
+          summary+="| CSS Validation | $css_emoji |\n"
+          summary+="| Link Check | $link_emoji |\n"
+
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$summary" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ "$html_status" != "success" ] || [ "$css_status" != "success" ]; then
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `${{ steps.summary.outputs.summary }}`;
+            const botComment = `<!-- validation-bot-comment -->\n${summary}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find(comment =>
+              comment.body.includes('<!-- validation-bot-comment -->')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: botComment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: botComment
+              });
+            }
+
+      - name: Fail if validation failed
+        if: steps.summary.outputs.has_failures == 'true'
+        run: exit 1
