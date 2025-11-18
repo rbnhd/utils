@@ -6,19 +6,19 @@
 }
 
 :root {
-    --primary-color: #2563eb;
-    --primary-hover: #1d4ed8;
-    --secondary-color: #64748b;
-    --secondary-hover: #475569;
-    --background: #ffffff;
-    --surface: #f8fafc;
-    --border: #e2e8f0;
-    --text-primary: #0f172a;
-    --text-secondary: #64748b;
-    --success: #10b981;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --primary-color: #58a6ff;
+    --primary-hover: #1f6feb;
+    --secondary-color: #8b949e;
+    --secondary-hover: #c9d1d9;
+    --background: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --success: #3fb950;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
 }
 
 body {
@@ -39,10 +39,11 @@ body {
 
 /* Header styles */
 header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
     color: white;
     padding: 4rem 2rem;
     text-align: center;
+    border-bottom: 1px solid var(--border);
 }
 
 .header-content h1 {
@@ -121,8 +122,8 @@ h2 {
 }
 
 .tag {
-    background-color: #dbeafe;
-    color: #1e40af;
+    background-color: rgba(88, 166, 255, 0.15);
+    color: #58a6ff;
     padding: 0.25rem 0.75rem;
     border-radius: 9999px;
     font-size: 0.875rem;
@@ -196,10 +197,11 @@ h2 {
 
 /* Footer */
 footer {
-    background-color: var(--text-primary);
+    background-color: #010409;
     color: white;
     padding: 3rem 2rem 2rem;
     margin-top: auto;
+    border-top: 1px solid var(--border);
 }
 
 .footer-content {
